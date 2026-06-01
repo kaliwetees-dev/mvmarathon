@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTGFLIX - Ultimate FTP & Media Streamer</title>
+    <!-- Google Fonts & Tailwind CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel for Single File App -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141414;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        /* Custom Netflix Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #141414;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4B5563;
+        }
+        /* Hide scrollbars for sliders while maintaining functionality */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Glowing effects */
+        .netflix-glow {
+            box-shadow: 0 0 25px rgba(229, 9, 20, 0.5);
+        }
+        .hero-gradient {
+            background: linear-gradient(to top, #141414 0%, rgba(20, 20, 20, 0.8) 40%, rgba(20, 20, 20, 0) 100%);
+        }
+        .modal-gradient {
+            background: linear-gradient(to bottom, rgba(20, 20, 20, 0.95) 0%, #141414 100%);
+        }
+        /* Card Scale-up Animation */
+        .movie-card {
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        }
+        .movie-card:hover {
+            transform: scale(1.08);
+            z-index: 30;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Target mount container for React -->
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // Custom SVGs for Lucide/Netflix style icons to remain self-contained
+        const Icons = {
+            Play: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M8 5v14l11-7z"/></svg>
+            ),
+            Pause: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" className={className}><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            ),
+            Info: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className={className}><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+            ),
+            Plus: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className={className}><path d="M12 5v14M5 12h14"/></svg>
+            ),
+            Check: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" className={className}><path d="M20 6L9 17l-5-5"/></svg>
+            ),
+            Search: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className={className}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            ),
+            VolumeHigh: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M11 5L6 9H2v6h4l5 4V5zm4 3a5 5 0 0 1 0 8m2.5-12a9 9 0 0 1 0 16"/></svg>
+            ),
+            VolumeMuted: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M11 5L6 9H2v6h4l5 4V5zm12 4l-6 6m0-6l6 6"/></svg>
+            ),
+            Maximize: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            ),
+            RotateCcw: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0 0V3m0 5h5"/></svg>
+            ),
+            ChevronLeft: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className={className}><path d="M15 19l-7-7 7-7"/></svg>
+            ),
+            ChevronRight: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" className={className}><path d="M9 5l7 7-7 7"/></svg>
+            ),
+            Settings: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            ),
+            Close: ({ className = "w-6 h-6" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M18 6L6 18M6 6l12 12"/></svg>
+            ),
+            Sparkles: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>
+            ),
+            Grid: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            ),
+            User: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ),
+            CloudUpload: ({ className = "w-5 h-5" }) => (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className={className}><path d="M12 12V3m0 0L8.5 6.5M12 3l3.5 3.5M20 12a8 8 0 0 1-7.5 7.9A8 8 0 0 1 4 12"/></svg>
+            )
+        };
+
+        // Curated content with cinematic background images matching standard folder releases
+        const DEFAULT_MOVIES = [
+            {
+                id: "oppenheimer-2023",
+                title: "Oppenheimer",
+                filename: "Oppenheimer (2023) [1080p] [WEBRip].mp4",
+                category: "Drama",
+                year: "2023",
+                rating: "8.9",
+                match: "98% Match",
+                quality: "4K UHD",
+                duration: "3h 0m",
+                description: "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II, altering the course of human history.",
+                poster: "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4" // High quality demo fallback
+            },
+            {
+                id: "dune-part-2",
+                title: "Dune: Part Two",
+                filename: "Dune.Part.Two.2024.1080p.WEBRip.mp4",
+                category: "Sci-Fi",
+                year: "2024",
+                rating: "8.8",
+                match: "99% Match",
+                quality: "HDR",
+                duration: "2h 46m",
+                description: "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family, facing a choice between love and the universe's fate.",
+                poster: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+            },
+            {
+                id: "interstellar-2014",
+                title: "Interstellar",
+                filename: "Interstellar.2014.1080p.BluRay.mp4",
+                category: "Sci-Fi",
+                year: "2014",
+                rating: "8.7",
+                match: "96% Match",
+                quality: "1080p",
+                duration: "2h 49m",
+                description: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival on a dying, dusty Earth.",
+                poster: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            },
+            {
+                id: "spiderman-spiderverse",
+                title: "Spider-Man: Across the Spider-Verse",
+                filename: "Spider-Man.Across.the.Spider-Verse.2023.1080p.mp4",
+                category: "Action",
+                year: "2023",
+                rating: "8.9",
+                match: "95% Match",
+                quality: "HD",
+                duration: "2h 20m",
+                description: "Miles Morales catapults across the Multiverse, where he encounters a team of Spider-People charged with protecting its very existence.",
+                poster: "https://images.unsplash.com/photo-1635805737707-575885ab0820?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+            },
+            {
+                id: "the-batman-2022",
+                title: "The Batman",
+                filename: "The.Batman.2022.1080p.WEBRip.mp4",
+                category: "Action",
+                year: "2022",
+                rating: "7.8",
+                match: "91% Match",
+                quality: "1080p",
+                duration: "2h 56m",
+                description: "When a sadistic serial killer begins murdering key political figures in Gotham, Batman is forced to investigate the city's hidden corruption.",
+                poster: "https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4"
+            },
+            {
+                id: "avatar-way-water",
+                title: "Avatar: The Way of Water",
+                filename: "Avatar.The.Way.of.Water.2022.1080p.mp4",
+                category: "Sci-Fi",
+                year: "2022",
+                rating: "7.6",
+                match: "93% Match",
+                quality: "4K UHD",
+                duration: "3h 12m",
+                description: "Jake Sully lives with his newfound family formed on the extrasolar moon Pandora. Once a familiar threat returns, Jake must work with Neytiri and the army of the Na'vi race.",
+                poster: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1500485035595-cbe6f645feb1?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4"
+            },
+            {
+                id: "top-gun-maverick",
+                title: "Top Gun: Maverick",
+                filename: "Top.Gun.Maverick.2022.1080p.mp4",
+                category: "Action",
+                year: "2022",
+                rating: "8.3",
+                match: "97% Match",
+                quality: "HDR",
+                duration: "2h 10m",
+                description: "After thirty years, Maverick is still pushing the envelope as a top naval aviator, but must confront ghosts of his past when he leads elite graduates on a specialized mission.",
+                poster: "https://images.unsplash.com/photo-1531259683007-016a7b628fc3?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+            },
+            {
+                id: "everything-everywhere",
+                title: "Everything Everywhere All at Once",
+                filename: "Everything.Everywhere.All.at.Once.2022.mp4",
+                category: "Drama",
+                year: "2022",
+                rating: "8.0",
+                match: "94% Match",
+                quality: "HD",
+                duration: "2h 19m",
+                description: "A middle-aged Chinese immigrant is swept up into an insane adventure in which she alone can save existence by exploring other universes.",
+                poster: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80",
+                banner: "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=1600&q=80",
+                streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
+            }
+        ];
+
+        function App() {
+            const [movies, setMovies] = useState(() => {
+                const stored = localStorage.getItem("ctgflix_movies");
+                return stored ? JSON.parse(stored) : DEFAULT_MOVIES;
+            });
+            const [myList, setMyList] = useState(() => {
+                const stored = localStorage.getItem("ctgflix_mylist");
+                return stored ? JSON.parse(stored) : [];
+            });
+            const [watchHistory, setWatchHistory] = useState(() => {
+                const stored = localStorage.getItem("ctgflix_history");
+                return stored ? JSON.parse(stored) : [];
+            });
+            
+            const [selectedMovie, setSelectedMovie] = useState(null);
+            const [activePlayingMovie, setActivePlayingMovie] = useState(null);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [isScrapeModalOpen, setIsScrapeModalOpen] = useState(false);
+            const [rawHTMLInput, setRawHTMLInput] = useState("");
+            const [targetServerUrl, setTargetServerUrl] = useState("https://ftp.ctgfun.com/English/");
+            const [activeTab, setActiveTab] = useState("Home"); // Home, TV Shows, Movies, My List, FTP Library
+            const [scrolled, setScrolled] = useState(false);
+            const [infoAlert, setInfoAlert] = useState(null);
+
+            // Sync database modifications
+            useEffect(() => {
+                localStorage.setItem("ctgflix_movies", JSON.stringify(movies));
+            }, [movies]);
+
+            useEffect(() => {
+                localStorage.setItem("ctgflix_mylist", JSON.stringify(myList));
+            }, [myList]);
+
+            useEffect(() => {
+                localStorage.setItem("ctgflix_history", JSON.stringify(watchHistory));
+            }, [watchHistory]);
+
+            // Navbar background transition on scroll
+            useEffect(() => {
+                const handleScroll = () => {
+                    if (window.scrollY > 40) {
+                        setScrolled(true);
+                    } else {
+                        setScrolled(false);
+                    }
+                };
+                window.addEventListener("scroll", handleScroll);
+                return () => window.removeEventListener("scroll", handleScroll);
+            }, []);
+
+            const showAlert = (msg, type = "info") => {
+                setInfoAlert({ msg, type });
+                setTimeout(() => setInfoAlert(null), 4000);
+            };
+
+            const filteredMovies = useMemo(() => {
+                let list = [...movies];
+                
+                if (activeTab === "My List") {
+                    list = list.filter(m => myList.includes(m.id));
+                } else if (activeTab === "Movies") {
+                    list = list.filter(m => m.category !== "TV Shows");
+                } else if (activeTab === "TV Shows") {
+                    list = list.filter(m => m.category === "TV Shows" || m.title.toLowerCase().includes("season") || m.title.toLowerCase().includes("ep"));
+                } else if (activeTab === "FTP Library") {
+                    list = list.filter(m => m.fromFTP);
+                }
+
+                if (searchQuery.trim() !== "") {
+                    const q = searchQuery.toLowerCase();
+                    list = list.filter(m => 
+                        m.title.toLowerCase().includes(q) || 
+                        (m.filename && m.filename.toLowerCase().includes(q)) ||
+                        m.category.toLowerCase().includes(q)
+                    );
+                }
+                return list;
+            }, [movies, activeTab, myList, searchQuery]);
+
+            // Parses Apache / IIS open directories instantly from user copy-pasted html source
+            const parseOpenDirectoryHTML = () => {
+                if (!rawHTMLInput.trim()) {
+                    showAlert("Please paste some HTML file list contents first!", "error");
+                    return;
+                }
+
+                try {
+                    // Regular expression to scan anchor tags
+                    const regex = /<a\s+(?:[^>]*?\s+)?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+                    let match;
+                    const detectedFiles = [];
+                    
+                    while ((match = regex.exec(rawHTMLInput)) !== null) {
+                        const href = match[1];
+                        const linkText = match[2].replace(/<[^>]*>/g, '').trim();
+                        
+                        // Grab valid media types commonly hosted on BDIX servers
+                        if (href && (href.endsWith('.mp4') || href.endsWith('.mkv') || href.endsWith('.avi') || href.endsWith('.webm'))) {
+                            const filename = decodeURIComponent(href);
+                            // Avoid index parent folder links
+                            if (!filename.startsWith('/') && !filename.startsWith('http')) {
+                                detectedFiles.push({ filename, linkText });
+                            }
+                        }
+                    }
+
+                    if (detectedFiles.length === 0) {
+                        showAlert("Could not find any video links (.mp4, .mkv, .avi) in the provided HTML. Make sure you copy-paste the whole page source code!", "error");
+                        return;
+                    }
+
+                    // Map scraped assets into beautiful custom Cards matching Netflix schemas
+                    const unsplashTechBanners = [
+                        "https://images.unsplash.com/photo-1536440136628-849c177e76a1",
+                        "https://images.unsplash.com/photo-1509198397868-475647b2a1e5",
+                        "https://images.unsplash.com/photo-1462331940025-496dfbfc7564",
+                        "https://images.unsplash.com/photo-1518709268805-4e9042af9f23",
+                        "https://images.unsplash.com/photo-1436491865332-7a61a109cc05",
+                        "https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86"
+                    ];
+
+                    const parsedCards = detectedFiles.map((file, i) => {
+                        // Clean file title naming
+                        let displayTitle = file.filename
+                            .replace(/\.[^/.]+$/, "") // strip extension
+                            .replace(/[\._\-+]/g, ' ') // convert special spacing chars to real space
+                            .replace(/\b(1080p|720p|2160p|webrip|bluray|x264|x265|h264|hevc|dd5|dual|audio|eng|esub|mkv|mp4)\b/gi, '') // clean rip keywords
+                            .trim();
+
+                        if (displayTitle.length === 0) displayTitle = file.linkText || file.filename;
+
+                        const randomBanner = unsplashTechBanners[i % unsplashTechBanners.length];
+                        const buildFullUrl = targetServerUrl.endsWith('/') ? targetServerUrl + file.filename : targetServerUrl + '/' + file.filename;
+
+                        return {
+                            id: `ftp-file-${i}-${Date.now()}`,
+                            title: displayTitle,
+                            filename: file.filename,
+                            category: "FTP Crawl",
+                            year: new Date().getFullYear().toString(),
+                            rating: (7.0 + (Math.random() * 2.8)).toFixed(1),
+                            match: `${Math.floor(85 + Math.random() * 15)}% Match`,
+                            quality: file.filename.toLowerCase().includes("2160") || file.filename.toLowerCase().includes("4k") ? "4K UHD" : "1080p",
+                            duration: "Varies",
+                            description: `File stream parsed from: ${file.filename}. Click Play to stream instantly from your configured CTGFun / BDIX server URL directly inside your web app.`,
+                            poster: `${randomBanner}?auto=format&fit=crop&w=600&q=80`,
+                            banner: `${randomBanner}?auto=format&fit=crop&w=1600&q=80`,
+                            streamUrl: buildFullUrl,
+                            fromFTP: true
+                        };
+                    });
+
+                    // Add custom parsed movies to list, keeping default mock items too
+                    setMovies(prev => [...parsedCards, ...prev.filter(m => !m.fromFTP)]);
+                    setIsScrapeModalOpen(false);
+                    setRawHTMLInput("");
+                    setActiveTab("FTP Library");
+                    showAlert(`Successfully imported ${parsedCards.length} streaming video assets from FTP index source!`, "success");
+
+                } catch (e) {
+                    console.error(e);
+                    showAlert("An error occurred during parsing. Double check your HTML layout.", "error");
+                }
+            };
+
+            const toggleMyList = (id, e) => {
+                if (e) e.stopPropagation();
+                if (myList.includes(id)) {
+                    setMyList(prev => prev.filter(mid => mid !== id));
+                    showAlert("Removed from My List");
+                } else {
+                    setMyList(prev => [...prev, id]);
+                    showAlert("Added to My List", "success");
+                }
+            };
+
+            const triggerPlayMovie = (movie, e) => {
+                if (e) e.stopPropagation();
+                setActivePlayingMovie(movie);
+                
+                // Add to watch progress history
+                if (!watchHistory.some(h => h.id === movie.id)) {
+                    setWatchHistory(prev => [{ id: movie.id, title: movie.title, poster: movie.poster, percent: 0, date: Date.now() }, ...prev].slice(0, 8));
+                }
+            };
+
+            const updateMovieHistoryProgress = (movieId, percent) => {
+                setWatchHistory(prev => {
+                    return prev.map(item => {
+                        if (item.id === movieId) {
+                            return { ...item, percent, date: Date.now() };
+                        }
+                        return item;
+                    });
+                });
+            };
+
+            const removeHistoryItem = (id, e) => {
+                if (e) e.stopPropagation();
+                setWatchHistory(prev => prev.filter(h => h.id !== id));
+            };
+
+            return (
+                <div className="min-h-screen bg-[#141414] relative text-white pb-24">
+                    
+                    {/* INFO TOAST ALERT */}
+                    {infoAlert && (
+                        <div className={`fixed top-24 right-5 z-50 p-4 rounded-md shadow-2xl flex items-center space-x-3 transition-all transform animate-bounce duration-300 ${infoAlert.type === 'success' ? 'bg-emerald-600 border border-emerald-400' : infoAlert.type === 'error' ? 'bg-rose-700 border border-rose-500' : 'bg-zinc-800 border border-zinc-700'}`}>
+                            <span className="font-semibold text-sm">{infoAlert.msg}</span>
+                        </div>
+                    )}
+
+                    {/* NETFLIX-STYLE HEADER */}
+                    <header className={`fixed top-0 left-0 w-full z-40 transition-colors duration-500 flex items-center justify-between px-6 py-4 md:px-12 ${scrolled ? 'bg-[#141414]' : 'bg-transparent bg-gradient-to-b from-black/80 to-transparent'}`}>
+                        <div className="flex items-center space-x-8">
+                            {/* Logo */}
+                            <div className="text-red-600 font-black text-2xl md:text-3xl tracking-tighter cursor-pointer flex items-center space-x-1" onClick={() => setActiveTab("Home")}>
+                                <span className="text-red-600 font-extrabold select-none netflix-glow px-2 py-0.5 rounded-sm border border-red-700/30 bg-black/40">CTGFLIX</span>
+                            </div>
+                            {/* Desktop Links */}
+                            <nav className="hidden md:flex items-center space-x-6 text-sm text-zinc-300 font-medium">
+                                {["Home", "TV Shows", "Movies", "My List", "FTP Library"].map((tab) => (
+                                    <button 
+                                        key={tab} 
+                                        onClick={() => { setActiveTab(tab); setSearchQuery(""); }}
+                                        className={`hover:text-white transition duration-200 ${activeTab === tab ? 'text-white font-bold underline underline-offset-8 decoration-red-600 decoration-2' : ''}`}
+                                    >
+                                        {tab}
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+
+                        {/* Top controls and Search */}
+                        <div className="flex items-center space-x-4">
+                            <div className="relative flex items-center bg-zinc-900/80 border border-zinc-700/60 rounded-full px-3 py-1.5 w-40 md:w-64 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600 transition">
+                                <Icons.Search className="text-zinc-400 w-4.5 h-4.5 mr-2" />
+                                <input 
+                                    type="text" 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search titles, files..." 
+                                    className="bg-transparent outline-none border-none text-xs w-full text-white placeholder-zinc-500"
+                                />
+                                {searchQuery && (
+                                    <button onClick={() => setSearchQuery("")} className="text-zinc-500 hover:text-white text-xs font-bold px-1">X</button>
+                                )}
+                            </div>
+
+                            {/* Dynamic FTP Loader trigger */}
+                            <button 
+                                onClick={() => setIsScrapeModalOpen(true)}
+                                className="bg-red-600 hover:bg-red-700 font-bold text-xs md:text-sm px-4 py-2 rounded flex items-center space-x-1.5 transition active:scale-95 shadow-md shadow-red-900/20"
+                            >
+                                <Icons.CloudUpload className="w-4 h-4" />
+                                <span className="hidden sm:inline">Import FTP Index</span>
+                            </button>
+
+                            {/* Quick status profile icon */}
+                            <div className="w-8 h-8 rounded bg-zinc-700 flex items-center justify-center font-bold text-sm cursor-pointer border border-zinc-500 select-none hover:bg-zinc-600">
+                                U
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Mobile Navigation Drawer Overlay */}
+                    <div className="md:hidden fixed bottom-0 left-0 w-full bg-[#181818] border-t border-zinc-800 z-40 py-2.5 flex justify-around items-center text-[10px] text-zinc-400 font-medium">
+                        {[
+                            { name: "Home", label: "Home", icon: <Icons.Sparkles className="w-5 h-5"/> },
+                            { name: "My List", label: "My List", icon: <Icons.Plus className="w-5 h-5"/> },
+                            { name: "FTP Library", label: "FTP Lib", icon: <Icons.Grid className="w-5 h-5" /> }
+                        ].map((item) => (
+                            <button 
+                                key={item.name}
+                                onClick={() => { setActiveTab(item.name); setSearchQuery(""); }}
+                                className={`flex flex-col items-center space-y-1 ${activeTab === item.name ? 'text-red-500' : 'text-zinc-400'}`}
+                            >
+                                {item.icon}
+                                <span>{item.label}</span>
+                            </button>
+                        ))}
+                        <button 
+                            onClick={() => setIsScrapeModalOpen(true)}
+                            className="flex flex-col items-center space-y-1 text-zinc-400"
+                        >
+                            <Icons.CloudUpload className="w-5 h-5" />
+                            <span>Import</span>
+                        </button>
+                    </div>
+
+                    {}
+                    {/* Render elegant billboard top section if we are on Home tab & not actively searching */}
+                    {activeTab === "Home" && !searchQuery && (
+                        <div className="relative h-[65vh] md:h-[85vh] w-full bg-black">
+                            <div className="absolute inset-0 w-full h-full">
+                                <img 
+                                    src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1800&q=80" 
+                                    alt="Hero Banner" 
+                                    className="w-full h-full object-cover opacity-60 filter saturate-100"
+                                />
+                                <div className="absolute inset-0 hero-gradient"></div>
+                            </div>
+
+                            {/* Billboard Overlay Text Content */}
+                            <div className="absolute bottom-16 md:bottom-28 left-6 md:left-16 max-w-xl md:max-w-2xl space-y-4">
+                                <div className="flex items-center space-x-2 text-xs md:text-sm text-zinc-400 font-bold tracking-wider">
+                                    <span className="text-red-500 font-black">N</span>
+                                    <span>C T G F L I X &nbsp; O R I G I N A L</span>
+                                </div>
+                                <h1 className="text-4xl md:text-7xl font-extrabold tracking-tight drop-shadow-xl text-white">
+                                    Oppenheimer
+                                </h1>
+                                <p className="text-xs md:text-base text-zinc-300 font-normal leading-relaxed line-clamp-3 md:line-clamp-4 drop-shadow-md">
+                                    The legendary historical epic detailing J. Robert Oppenheimer's role in constructing the Manhattan Project atomic weapon, which redefined military might and global security for centuries to come. Stream direct files from your BDIX directory!
+                                </p>
+                                
+                                <div className="flex items-center space-x-3 pt-2">
+                                    <button 
+                                        onClick={() => triggerPlayMovie(movies[0])}
+                                        className="bg-white hover:bg-zinc-200 text-black font-extrabold text-sm md:text-base px-6 md:px-8 py-2.5 rounded flex items-center space-x-2 transition duration-200 active:scale-95 shadow-lg"
+                                    >
+                                        <Icons.Play className="w-5 h-5 text-black" />
+                                        <span>Play</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => setSelectedMovie(movies[0])}
+                                        className="bg-zinc-500/50 hover:bg-zinc-500/30 text-white font-bold text-sm md:text-base px-6 py-2.5 rounded flex items-center space-x-2 transition duration-200 active:scale-95"
+                                    >
+                                        <Icons.Info className="w-5 h-5" />
+                                        <span>More Info</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MAIN CATALOG SCREEN LAYOUT */}
+                    <div className={`px-6 md:px-12 ${activeTab !== "Home" || searchQuery ? 'pt-24' : 'pt-4 md:-mt-12 relative z-20'}`}>
+                        
+                        {/* CONTINUING WATCH HISTORY SECTION */}
+                        {watchHistory.length > 0 && activeTab === "Home" && !searchQuery && (
+                            <div className="mb-10">
+                                <h2 className="text-lg md:text-2xl font-bold mb-4 flex items-center space-x-2 text-zinc-100">
+                                    <span>Continue Watching for User</span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                                </h2>
+                                <div className="flex space-x-4 overflow-x-auto pb-4 no-scrollbar">
+                                    {watchHistory.map((hist) => {
+                                        const fullMovie = movies.find(m => m.id === hist.id);
+                                        return (
+                                            <div 
+                                                key={hist.id} 
+                                                className="flex-none w-48 md:w-60 bg-zinc-900 border border-zinc-800 rounded-md overflow-hidden relative group cursor-pointer"
+                                                onClick={() => fullMovie && triggerPlayMovie(fullMovie)}
+                                            >
+                                                <div className="relative h-28 md:h-34">
+                                                    <img src={hist.poster} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt={hist.title}/>
+                                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200">
+                                                        <div className="p-3 rounded-full bg-white/20 backdrop-blur-sm border border-white/40">
+                                                            <Icons.Play className="w-6 h-6 text-white" />
+                                                        </div>
+                                                    </div>
+                                                    {/* Delete history button */}
+                                                    <button 
+                                                        onClick={(e) => removeHistoryItem(hist.id, e)}
+                                                        className="absolute top-2 right-2 p-1 rounded-full bg-black/60 hover:bg-black text-zinc-400 hover:text-white transition z-10"
+                                                        title="Remove from history"
+                                                    >
+                                                        <Icons.Close className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                                <div className="p-3">
+                                                    <h4 className="text-xs md:text-sm font-semibold truncate text-white mb-2">{hist.title}</h4>
+                                                    {/* Custom Netflix Video progress bar indicator */}
+                                                    <div className="w-full bg-zinc-700 h-1 rounded-full overflow-hidden">
+                                                        <div className="bg-red-600 h-full" style={{ width: `${Math.max(hist.percent || 15, 8)}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* LIST ROW CAROUSELS FOR HOME */}
+                        {activeTab === "Home" && !searchQuery ? (
+                            <div className="space-y-10">
+                                {/* Row 1: Featured & Popular */}
+                                <MovieCarousel 
+                                    title="Popular on CTGFLIX" 
+                                    movies={movies.filter(m => !m.fromFTP)} 
+                                    onPlay={triggerPlayMovie} 
+                                    onSelect={setSelectedMovie}
+                                    onToggleList={toggleMyList}
+                                    myList={myList}
+                                />
+
+                                {/* Row 2: Sci-Fi block */}
+                                <MovieCarousel 
+                                    title="Sci-Fi & Cosmic Explorations" 
+                                    movies={movies.filter(m => m.category === "Sci-Fi")} 
+                                    onPlay={triggerPlayMovie} 
+                                    onSelect={setSelectedMovie}
+                                    onToggleList={toggleMyList}
+                                    myList={myList}
+                                />
+
+                                {/* Row 3: Action Cinema */}
+                                <MovieCarousel 
+                                    title="Action Blockbusters" 
+                                    movies={movies.filter(m => m.category === "Action")} 
+                                    onPlay={triggerPlayMovie} 
+                                    onSelect={setSelectedMovie}
+                                    onToggleList={toggleMyList}
+                                    myList={myList}
+                                />
+
+                                {/* Row 4: Customized/Pasted FTP Assets */}
+                                {movies.some(m => m.fromFTP) && (
+                                    <MovieCarousel 
+                                        title="Your Imported FTP Server Catalog" 
+                                        movies={movies.filter(m => m.fromFTP)} 
+                                        onPlay={triggerPlayMovie} 
+                                        onSelect={setSelectedMovie}
+                                        onToggleList={toggleMyList}
+                                        myList={myList}
+                                    />
+                                )}
+                            </div>
+                        ) : (
+                            /* List Screen Grid View (Filter Active Categories) */
+                            <div className="space-y-6">
+                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-4 border-b border-zinc-800">
+                                    <h2 className="text-xl md:text-3xl font-extrabold tracking-tight">
+                                        {searchQuery ? `Search Results for "${searchQuery}"` : activeTab}
+                                    </h2>
+                                    <span className="text-xs md:text-sm text-zinc-400 mt-1 md:mt-0 font-medium">
+                                        Showing {filteredMovies.length} matching titles
+                                    </span>
+                                </div>
+
+                                {filteredMovies.length === 0 ? (
+                                    <div className="text-center py-20 bg-zinc-900/40 rounded-lg border border-zinc-800/80 px-6">
+                                        <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+                                            <Icons.Info className="w-8 h-8 text-zinc-500" />
+                                        </div>
+                                        <h3 className="text-lg md:text-xl font-bold text-zinc-200">No streamable assets matched</h3>
+                                        <p className="text-sm text-zinc-400 max-w-md mx-auto mt-2">
+                                            Try adjusting your keyword, importing more server links via the "Import FTP Index" option, or resetting filters.
+                                        </p>
+                                        {activeTab === "FTP Library" && (
+                                            <button 
+                                                onClick={() => setIsScrapeModalOpen(true)}
+                                                className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold text-sm px-5 py-2.5 rounded transition inline-flex items-center space-x-2"
+                                            >
+                                                <Icons.CloudUpload className="w-4 h-4" />
+                                                <span>Import Server Index Now</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-8">
+                                        {filteredMovies.map((movie) => (
+                                            <div 
+                                                key={movie.id} 
+                                                onClick={() => setSelectedMovie(movie)}
+                                                className="movie-card bg-[#181818] rounded-md overflow-hidden relative cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-black/60 transition-transform duration-300"
+                                            >
+                                                <div className="relative aspect-video">
+                                                    <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title}/>
+                                                    <div className="absolute top-2 right-2 bg-black/75 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-300 border border-zinc-700/50">
+                                                        {movie.quality}
+                                                    </div>
+                                                </div>
+                                                <div className="p-3 space-y-1.5">
+                                                    <h3 className="text-xs md:text-sm font-bold truncate text-white" title={movie.title}>{movie.title}</h3>
+                                                    <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                                                        <span className="text-green-500 font-semibold">{movie.match}</span>
+                                                        <span>{movie.year}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between pt-1">
+                                                        <button 
+                                                            onClick={(e) => triggerPlayMovie(movie, e)}
+                                                            className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded-full flex items-center justify-center transition hover:scale-110 active:scale-95"
+                                                        >
+                                                            <Icons.Play className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => toggleMyList(movie.id, e)}
+                                                            className="text-zinc-400 hover:text-white p-1"
+                                                        >
+                                                            {myList.includes(movie.id) ? <Icons.Check className="w-4 h-4 text-emerald-500" /> : <Icons.Plus className="w-4 h-4" />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {}
+                    {/* FTP SOURCE PARSER DIALOG OVERLAY */}
+                    {isScrapeModalOpen && (
+                        <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-[#181818] border border-zinc-800 rounded-lg max-w-2xl w-full p-6 space-y-5 shadow-2xl relative">
+                                <button 
+                                    onClick={() => setIsScrapeModalOpen(false)}
+                                    className="absolute top-4 right-4 text-zinc-400 hover:text-white transition"
+                                >
+                                    <Icons.Close className="w-6 h-6" />
+                                </button>
+
+                                <div className="space-y-2">
+                                    <h3 className="text-xl md:text-2xl font-black text-white flex items-center space-x-2">
+                                        <Icons.CloudUpload className="text-red-500 w-6 h-6" />
+                                        <span>BDIX & Local FTP Parser Tool</span>
+                                    </h3>
+                                    <p className="text-xs md:text-sm text-zinc-400 leading-relaxed">
+                                        Standard web browsers block direct loading of movie file directories due to CORS security policies. 
+                                        To import the full movie index list automatically, open your FTP/HTTP server (e.g., <span className="text-red-400 underline font-mono select-all">https://ftp.ctgfun.com/English/</span>) in another tab, right-click anywhere on the page, select <b>"View Page Source"</b>, copy all of it, and paste it here!
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {/* Config target stream URL prefix */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-zinc-300 font-bold block">Base Server URL Stream Prefix:</label>
+                                        <input 
+                                            type="text" 
+                                            value={targetServerUrl}
+                                            onChange={(e) => setTargetServerUrl(e.target.value)}
+                                            placeholder="https://ftp.ctgfun.com/English/"
+                                            className="w-full bg-zinc-900 border border-zinc-700/80 rounded px-3 py-2 text-sm text-white focus:border-red-600 focus:outline-none font-mono"
+                                        />
+                                    </div>
+
+                                    {/* Source paste box */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs text-zinc-300 font-bold block">Paste Directory HTML Source:</label>
+                                        <textarea 
+                                            rows="6"
+                                            value={rawHTMLInput}
+                                            onChange={(e) => setRawHTMLInput(e.target.value)}
+                                            placeholder="&lt;html&gt;&lt;head&gt;... &lt;a href=&quot;Oppenheimer.mp4&quot;&gt;... &lt;/html&gt;"
+                                            className="w-full bg-zinc-900 border border-zinc-700/80 rounded px-3 py-2 text-xs text-white focus:border-red-600 focus:outline-none font-mono no-scrollbar"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end space-x-3 pt-2">
+                                    <button 
+                                        onClick={() => setIsScrapeModalOpen(false)}
+                                        className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded text-sm text-zinc-300 font-medium transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        onClick={parseOpenDirectoryHTML}
+                                        className="bg-red-600 hover:bg-red-700 px-5 py-2 rounded text-sm text-white font-bold transition flex items-center space-x-2"
+                                    >
+                                        <span>Parse & Load Catalog</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {}
+                    {/* DETAILS MODAL DRAWER OVERLAY */}
+                    {selectedMovie && (
+                        <div className="fixed inset-0 bg-black/85 z-40 flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm">
+                            <div className="bg-[#181818] border border-zinc-800 rounded-lg max-w-3xl w-full overflow-hidden shadow-2xl relative my-8 animate-fade-in">
+                                <button 
+                                    onClick={() => setSelectedMovie(null)}
+                                    className="absolute top-4 right-4 z-50 bg-black/60 p-1.5 rounded-full text-zinc-300 hover:text-white transition hover:scale-110"
+                                >
+                                    <Icons.Close className="w-5 h-5" />
+                                </button>
+
+                                {/* Modal Banner */}
+                                <div className="relative h-60 md:h-80 w-full">
+                                    <img src={selectedMovie.banner} className="w-full h-full object-cover opacity-80" alt={selectedMovie.title}/>
+                                    <div className="absolute inset-0 modal-gradient"></div>
+                                    <div className="absolute bottom-6 left-6 md:left-10 max-w-md">
+                                        <h2 className="text-2xl md:text-4xl font-extrabold tracking-tight mb-3 drop-shadow">{selectedMovie.title}</h2>
+                                        <div className="flex items-center space-x-3">
+                                            <button 
+                                                onClick={() => { setSelectedMovie(null); triggerPlayMovie(selectedMovie); }}
+                                                className="bg-white hover:bg-zinc-200 text-black font-extrabold text-sm px-6 py-2 rounded flex items-center space-x-2 transition"
+                                            >
+                                                <Icons.Play className="w-4 h-4 text-black fill-current" />
+                                                <span>Play Now</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => toggleMyList(selectedMovie.id)}
+                                                className="bg-zinc-800/80 hover:bg-zinc-700/80 text-white p-2.5 rounded-full border border-zinc-700 transition"
+                                                title="Add to Watchlist"
+                                            >
+                                                {myList.includes(selectedMovie.id) ? <Icons.Check className="w-4 h-4 text-emerald-500" /> : <Icons.Plus className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Info Details */}
+                                <div className="p-6 md:p-10 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                                    <div className="md:col-span-2 space-y-4">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
+                                            <span className="text-green-500 font-bold">{selectedMovie.match}</span>
+                                            <span className="text-zinc-400">{selectedMovie.year}</span>
+                                            <span className="border border-zinc-600 px-1.5 py-0.5 rounded text-[10px] text-zinc-400 font-bold">{selectedMovie.quality}</span>
+                                            <span className="text-zinc-400">{selectedMovie.duration}</span>
+                                            <span className="bg-zinc-800 px-1.5 py-0.5 rounded text-xs text-zinc-300 font-medium">IMDb {selectedMovie.rating}</span>
+                                        </div>
+                                        <p className="text-zinc-300 leading-relaxed font-normal text-xs md:text-sm">
+                                            {selectedMovie.description}
+                                        </p>
+                                        {selectedMovie.filename && (
+                                            <div className="bg-zinc-900 border border-zinc-800 rounded p-3 text-[11px] md:text-xs font-mono text-zinc-400 select-all break-all">
+                                                <span className="font-bold text-zinc-300 block mb-1">Raw Server File:</span>
+                                                {selectedMovie.filename}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Sidebar Tags */}
+                                    <div className="space-y-4 text-xs text-zinc-400">
+                                        <div>
+                                            <span className="text-zinc-500 font-bold block mb-1">Genre:</span>
+                                            <span className="text-zinc-300">{selectedMovie.category}, Classic, Thriller</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-zinc-500 font-bold block mb-1">BDIX Server Source IP:</span>
+                                            <span className="text-zinc-300 font-mono break-all">{selectedMovie.streamUrl.substring(0, 45)}...</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-zinc-500 font-bold block mb-1">Subtitles:</span>
+                                            <span className="text-zinc-300">English, Bengali (Local SRT Support)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {}
+                    {/* CUSTOM DISTRACTION-FREE MOVIE PLAYER HUD */}
+                    {activePlayingMovie && (
+                        <CustomVideoPlayer 
+                            movie={activePlayingMovie} 
+                            playlist={movies}
+                            onClose={() => setActivePlayingMovie(null)}
+                            onPlayNext={(nextMovie) => setActivePlayingMovie(nextMovie)}
+                            updateHistory={updateMovieHistoryProgress}
+                        />
+                    )}
+
+                </div>
+            );
+        }
+
+        // Horizontal sliding shelf for rows
+        function MovieCarousel({ title, movies, onPlay, onSelect, onToggleList, myList }) {
+            const rowRef = useRef(null);
+
+            const scroll = (direction) => {
+                if (rowRef.current) {
+                    const { scrollLeft, clientWidth } = rowRef.current;
+                    const scrollTo = direction === "left" ? scrollLeft - clientWidth * 0.75 : scrollLeft + clientWidth * 0.75;
+                    rowRef.current.scrollTo({ left: scrollTo, behavior: "smooth" });
+                }
+            };
+
+            if (movies.length === 0) return null;
+
+            return (
+                <div className="space-y-2 relative group/row">
+                    <h2 className="text-sm md:text-xl font-bold text-zinc-200 tracking-wide pl-2">{title}</h2>
+                    
+                    {/* Carousel Wrapper */}
+                    <div className="relative">
+                        {/* Scroll buttons on hover */}
+                        <button 
+                            onClick={() => scroll("left")}
+                            className="absolute left-0 top-0 bottom-0 z-30 bg-black/60 hover:bg-black/80 text-white px-2 opacity-0 group-hover/row:opacity-100 transition duration-300 hidden md:flex items-center justify-center"
+                        >
+                            <Icons.ChevronLeft className="w-8 h-8" />
+                        </button>
+
+                        <div 
+                            ref={rowRef}
+                            className="flex space-x-3.5 overflow-x-auto py-3 px-2 no-scrollbar scroll-smooth"
+                        >
+                            {movies.map((movie) => (
+                                <div 
+                                    key={movie.id}
+                                    onClick={() => onSelect(movie)}
+                                    className="flex-none w-40 sm:w-48 md:w-56 bg-[#181818] rounded-md overflow-hidden relative cursor-pointer movie-card shadow-lg hover:shadow-2xl hover:shadow-black/60"
+                                >
+                                    <div className="relative aspect-video">
+                                        <img src={movie.poster} className="w-full h-full object-cover" alt={movie.title}/>
+                                        <div className="absolute top-1.5 right-1.5 bg-black/75 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-300 border border-zinc-700/50">
+                                            {movie.quality}
+                                        </div>
+                                    </div>
+                                    <div className="p-2.5 space-y-1">
+                                        <h3 className="text-xs font-bold truncate text-white" title={movie.title}>{movie.title}</h3>
+                                        <div className="flex items-center justify-between text-[9px] text-zinc-400">
+                                            <span className="text-green-500 font-semibold">{movie.match}</span>
+                                            <span>{movie.year}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between pt-1">
+                                            <button 
+                                                onClick={(e) => onPlay(movie, e)}
+                                                className="bg-red-600 hover:bg-red-700 text-white p-1 rounded-full flex items-center justify-center transition hover:scale-105"
+                                            >
+                                                <Icons.Play className="w-3 h-3 text-white fill-current" />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => onToggleList(movie.id, e)}
+                                                className="text-zinc-500 hover:text-white p-1"
+                                            >
+                                                {myList.includes(movie.id) ? <Icons.Check className="w-3.5 h-3.5 text-emerald-500" /> : <Icons.Plus className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button 
+                            onClick={() => scroll("right")}
+                            className="absolute right-0 top-0 bottom-0 z-30 bg-black/60 hover:bg-black/80 text-white px-2 opacity-0 group-hover/row:opacity-100 transition duration-300 hidden md:flex items-center justify-center"
+                        >
+                            <Icons.ChevronRight className="w-8 h-8" />
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        function CustomVideoPlayer({ movie, playlist, onClose, onPlayNext, updateHistory }) {
+            const videoRef = useRef(null);
+            const containerRef = useRef(null);
+            
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [currentTime, setCurrentTime] = useState(0);
+            const [duration, setDuration] = useState(0);
+            const [volume, setVolume] = useState(1);
+            const [isMuted, setIsMuted] = useState(false);
+            const [playbackRate, setPlaybackRate] = useState(1);
+            const [isFullscreen, setIsFullscreen] = useState(false);
+            const [showPlaylistSidebar, setShowPlaylistSidebar] = useState(false);
+            const [isControlsVisible, setIsControlsVisible] = useState(true);
+            const [playerError, setPlayerError] = useState(null);
+
+            // Keep controls interactive when mouse moves
+            let timeoutId = null;
+            const handleMouseMove = () => {
+                setIsControlsVisible(true);
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    if (isPlaying) {
+                        setIsControlsVisible(false);
+                    }
+                }, 3000);
+            };
+
+            useEffect(() => {
+                window.addEventListener("mousemove", handleMouseMove);
+                return () => {
+                    window.removeEventListener("mousemove", handleMouseMove);
+                    clearTimeout(timeoutId);
+                };
+            }, [isPlaying]);
+
+            // Track timeline adjustments
+            const formatTime = (timeInSeconds) => {
+                if (isNaN(timeInSeconds)) return "0:00";
+                const hours = Math.floor(timeInSeconds / 3600);
+                const minutes = Math.floor((timeInSeconds % 3600) / 60);
+                const seconds = Math.floor(timeInSeconds % 60);
+
+                const secondsFormatted = seconds < 10 ? `0${seconds}` : seconds;
+
+                if (hours > 0) {
+                    const minutesFormatted = minutes < 10 ? `0${minutes}` : minutes;
+                    return `${hours}:${minutesFormatted}:${secondsFormatted}`;
+                }
+                return `${minutes}:${secondsFormatted}`;
+            };
+
+            // Player logic hooks
+            const togglePlay = () => {
+                if (!videoRef.current) return;
+                if (isPlaying) {
+                    videoRef.current.pause();
+                    setIsPlaying(false);
+                } else {
+                    videoRef.current.play().then(() => {
+                        setIsPlaying(true);
+                        setPlayerError(null);
+                    }).catch(err => {
+                        console.error(err);
+                        setPlayerError("Direct stream block or source unsupported. Web players can't render unsupported codecs (like MKV/AVI directly) without browser plugin support. Make sure file is MP4 or your BDIX network path is reachable!");
+                    });
+                }
+            };
+
+            const skipTime = (amount) => {
+                if (videoRef.current) {
+                    videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.duration, videoRef.current.currentTime + amount));
+                }
+            };
+
+            const handleVolumeChange = (e) => {
+                const val = parseFloat(e.target.value);
+                setVolume(val);
+                if (videoRef.current) {
+                    videoRef.current.volume = val;
+                    videoRef.current.muted = val === 0;
+                }
+                setIsMuted(val === 0);
+            };
+
+            const toggleMute = () => {
+                if (videoRef.current) {
+                    const nextMuted = !isMuted;
+                    videoRef.current.muted = nextMuted;
+                    setIsMuted(nextMuted);
+                    if (nextMuted) {
+                        videoRef.current.volume = 0;
+                    } else {
+                        videoRef.current.volume = volume || 0.5;
+                    }
+                }
+            };
+
+            const handleSpeedChange = (rate) => {
+                setPlaybackRate(rate);
+                if (videoRef.current) {
+                    videoRef.current.playbackRate = rate;
+                }
+            };
+
+            const handleTimelineScrub = (e) => {
+                const val = parseFloat(e.target.value);
+                setCurrentTime(val);
+                if (videoRef.current) {
+                    videoRef.current.currentTime = val;
+                }
+            };
+
+            const toggleFullscreen = () => {
+                if (!containerRef.current) return;
+                
+                if (!document.fullscreenElement) {
+                    containerRef.current.requestFullscreen().then(() => {
+                        setIsFullscreen(true);
+                    }).catch(err => console.error(err));
+                } else {
+                    document.exitFullscreen();
+                    setIsFullscreen(false);
+                }
+            };
+
+            const handleTimeUpdate = () => {
+                if (videoRef.current) {
+                    setCurrentTime(videoRef.current.currentTime);
+                    
+                    // Periodically save progress to history
+                    if (videoRef.current.duration > 0) {
+                        const progressPercent = Math.floor((videoRef.current.currentTime / videoRef.current.duration) * 100);
+                        updateHistory(movie.id, progressPercent);
+                    }
+                }
+            };
+
+            const handleLoadedMetadata = () => {
+                if (videoRef.current) {
+                    setDuration(videoRef.current.duration);
+                    // Try autoplay
+                    videoRef.current.play().then(() => {
+                        setIsPlaying(true);
+                        setPlayerError(null);
+                    }).catch(() => {
+                        // Suppressed browser autoplay block
+                        setIsPlaying(false);
+                    });
+                }
+            };
+
+            return (
+                <div 
+                    ref={containerRef}
+                    className="fixed inset-0 z-50 bg-black flex items-center justify-center animate-fade-in text-white select-none overflow-hidden"
+                >
+                    {/* VIDEO FEED TAG */}
+                    <video 
+                        ref={videoRef}
+                        src={movie.streamUrl}
+                        onTimeUpdate={handleTimeUpdate}
+                        onLoadedMetadata={handleLoadedMetadata}
+                        onClick={togglePlay}
+                        onError={(e) => setPlayerError("Stream loading failed. If this is a local BDIX server URL, ensure you are connected to the specific network. If it is an MKV file, your browser may require transcoding.")}
+                        className="w-full h-full object-contain"
+                    />
+
+                    {/* MOVIE LOADING/CORES BLOCKS ERROR NOTIFICATION */}
+                    {playerError && (
+                        <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center z-30">
+                            <div className="w-16 h-16 rounded-full bg-red-600/20 border border-red-500 flex items-center justify-center mb-4">
+                                <Icons.Info className="text-red-500 w-8 h-8" />
+                            </div>
+                            <h3 className="text-xl font-bold text-red-500">Video Playback Issue</h3>
+                            <p className="text-sm text-zinc-400 max-w-lg mt-2 leading-relaxed">
+                                {playerError}
+                            </p>
+                            <div className="mt-6 flex flex-col sm:flex-row items-center gap-4">
+                                <button 
+                                    onClick={togglePlay}
+                                    className="bg-white text-black hover:bg-zinc-200 px-5 py-2 rounded text-sm font-bold transition"
+                                >
+                                    Retry Loading Stream
+                                </button>
+                                <button 
+                                    onClick={() => setShowPlaylistSidebar(true)}
+                                    className="bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2 rounded text-sm font-semibold transition"
+                                >
+                                    Browse Alternative Files
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* HUD & PLAYER OVERLAY CONTROLS */}
+                    <div className={`absolute inset-0 flex flex-col justify-between p-4 bg-gradient-to-t from-black/80 via-transparent to-black/80 transition-opacity duration-300 z-20 ${isControlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        
+                        {/* Top Bar Controls */}
+                        <div className="flex items-center justify-between">
+                            <button 
+                                onClick={onClose}
+                                className="flex items-center space-x-2 text-zinc-300 hover:text-white transition group"
+                            >
+                                <Icons.ChevronLeft className="w-8 h-8 group-hover:transform group-hover:-translate-x-1 transition-transform" />
+                                <div className="text-left">
+                                    <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Back to Browse</span>
+                                    <h2 className="text-sm md:text-lg font-extrabold text-white truncate max-w-xs md:max-w-md">{movie.title}</h2>
+                                </div>
+                            </button>
+
+                            <div className="flex items-center space-x-4">
+                                {/* Playlist/File Picker sidebar toggle */}
+                                <button 
+                                    onClick={() => setShowPlaylistSidebar(!showPlaylistSidebar)}
+                                    className={`p-2 rounded-full transition ${showPlaylistSidebar ? 'bg-red-600 text-white' : 'bg-black/60 hover:bg-black/80 text-zinc-300 hover:text-white'}`}
+                                    title="Show Folder Playlist"
+                                >
+                                    <Icons.Grid className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Mid controls (Double-tap areas simulated) */}
+                        <div className="absolute inset-y-1/3 inset-x-1/4 flex items-center justify-around opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                            <button onClick={() => skipTime(-10)} className="p-4 rounded-full bg-black/40 hover:bg-black/60 text-white pointer-events-auto">
+                                <span className="block text-xs font-bold">-10s</span>
+                            </button>
+                            <button onClick={togglePlay} className="p-6 rounded-full bg-black/40 hover:bg-black/60 text-white pointer-events-auto">
+                                {isPlaying ? <Icons.Pause className="w-8 h-8" /> : <Icons.Play className="w-8 h-8" />}
+                            </button>
+                            <button onClick={() => skipTime(10)} className="p-4 rounded-full bg-black/40 hover:bg-black/60 text-white pointer-events-auto">
+                                <span className="block text-xs font-bold">+10s</span>
+                            </button>
+                        </div>
+
+                        {/* Bottom Controller bar */}
+                        <div className="space-y-4">
+                            {/* Seek Slider and Timestamps */}
+                            <div className="flex items-center space-x-3 bg-black/40 p-2 rounded-lg backdrop-blur-xs">
+                                <span className="text-xs text-zinc-300 font-mono">{formatTime(currentTime)}</span>
+                                <input 
+                                    type="range"
+                                    min="0"
+                                    max={duration || 100}
+                                    value={currentTime}
+                                    onChange={handleTimelineScrub}
+                                    className="w-full h-1.5 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-red-600 focus:outline-none"
+                                />
+                                <span className="text-xs text-zinc-300 font-mono">{formatTime(duration)}</span>
+                            </div>
+
+                            {/* Controls buttons */}
+                            <div className="flex items-center justify-between pb-2">
+                                <div className="flex items-center space-x-6">
+                                    {/* Main Play */}
+                                    <button onClick={togglePlay} className="text-white hover:scale-110 transition">
+                                        {isPlaying ? <Icons.Pause className="w-7 h-7" /> : <Icons.Play className="w-7 h-7" />}
+                                    </button>
+
+                                    {/* Skip back/forward */}
+                                    <button onClick={() => skipTime(-10)} className="text-zinc-400 hover:text-white transition">
+                                        <Icons.RotateCcw className="w-5 h-5" />
+                                    </button>
+
+                                    {/* Volume Controls */}
+                                    <div className="flex items-center space-x-2 group/volume">
+                                        <button onClick={toggleMute} className="text-zinc-400 hover:text-white transition">
+                                            {isMuted ? <Icons.VolumeMuted className="w-5 h-5" /> : <Icons.VolumeHigh className="w-5 h-5" />}
+                                        </button>
+                                        <input 
+                                            type="range" 
+                                            min="0"
+                                            max="1"
+                                            step="0.05"
+                                            value={isMuted ? 0 : volume}
+                                            onChange={handleVolumeChange}
+                                            className="w-16 h-1 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-white opacity-0 group-hover/volume:opacity-100 transition-opacity"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-5">
+                                    {/* Speed controls pop */}
+                                    <div className="flex items-center space-x-2 bg-zinc-900/60 rounded px-2 py-1 text-xs">
+                                        <span className="text-zinc-400">Speed:</span>
+                                        {[1, 1.25, 1.5, 2].map((r) => (
+                                            <button 
+                                                key={r}
+                                                onClick={() => handleSpeedChange(r)}
+                                                className={`px-1.5 py-0.5 rounded font-bold transition ${playbackRate === r ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                                            >
+                                                {r}x
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Fullscreen Button */}
+                                    <button onClick={toggleFullscreen} className="text-zinc-400 hover:text-white transition">
+                                        <Icons.Maximize className="w-5 h-5" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* PLAYLIST / FOLDER INDEX SIDEBAR PANEL */}
+                    {showPlaylistSidebar && (
+                        <div className="absolute top-0 right-0 h-full w-80 md:w-96 bg-zinc-950/95 border-l border-zinc-800/80 z-30 p-6 flex flex-col justify-between shadow-2xl animate-fade-in">
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+                                    <div>
+                                        <h3 className="text-md font-extrabold text-white">Folder Playlist</h3>
+                                        <p className="text-xs text-zinc-500">Other available video files</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowPlaylistSidebar(false)}
+                                        className="text-zinc-400 hover:text-white transition"
+                                    >
+                                        <Icons.Close className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* List of files */}
+                                <div className="space-y-2.5 overflow-y-auto max-h-[70vh] pr-2 no-scrollbar">
+                                    {playlist.map((item) => (
+                                        <div 
+                                            key={item.id}
+                                            onClick={() => { onPlayNext(item); setPlayerError(null); }}
+                                            className={`p-3 rounded border text-left cursor-pointer transition flex space-x-3 items-center ${item.id === movie.id ? 'bg-red-950/40 border-red-800' : 'bg-zinc-900/50 border-zinc-800 hover:bg-zinc-800/80'}`}
+                                        >
+                                            <div className="w-12 h-8 rounded bg-zinc-800 flex-none relative overflow-hidden">
+                                                <img src={item.poster} className="w-full h-full object-cover" alt=""/>
+                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                                    <Icons.Play className="w-3 h-3 text-white" />
+                                                </div>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="text-xs font-bold text-white truncate">{item.title}</h4>
+                                                <p className="text-[10px] text-zinc-500 font-mono truncate">{item.filename || "Static Stream"}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-zinc-800 text-[10px] text-zinc-500">
+                                Powered by CTGFLIX Open Index Stream Engine.
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        // Render React components inside container
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+</body>
+</html>
